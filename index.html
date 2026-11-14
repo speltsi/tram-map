@@ -709,6 +709,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   }
   /* glide between updates on the GPU instead of moving the marker every frame in JS */
   .leaflet-marker-icon.tram-icon { transition: transform 3s linear; will-change: transform; }
+  .refit .leaflet-marker-icon.tram-icon { transition: none !important; }
   /* "near Kaleva": a static ring around the dot (no animation) */
   .tram .ring { position: absolute; inset: 0; border-radius: 50%; border: 3px solid rgba(255,90,95,.85); display: none; }
   .tram.kaleva .ring { display: block; }
@@ -789,22 +790,35 @@ LINES.split(",").forEach(line => {
 let kaleva = [];
 
 // ---- stops: Kaleva A/B ----
+let stopPts = [];
+function fit() {
+  // the frame can start at size 0 on the Chromecast: recalc size, then frame Kaleva + centre
+  document.body.classList.add("refit");
+  setTimeout(() => document.body.classList.remove("refit"), 100);
+  map.invalidateSize();
+  const size = map.getSize();
+  if (!stopPts.length || size.x < 50 || size.y < 50) return;
+  map.fitBounds(L.latLngBounds(stopPts.concat(EXTRA_BOUNDS)).pad(0.25),
+    { paddingTopLeft: [Math.round(size.x * 0.45), 40], paddingBottomRight: [40, 30], animate: false });
+}
+let fitTimer = null;
+window.addEventListener("resize", () => { clearTimeout(fitTimer); fitTimer = setTimeout(fit, 300); });
+[1000, 3000, 8000].forEach(ms => setTimeout(fit, ms));   // safety re-fits while the dashboard settles
+
 Promise.all(FOCUS_STOPS.map(id => fetch(API + "stop-points/" + id).then(r => r.json()).catch(() => null)))
   .then(res => {
-    const pts = [];
     res.forEach(j => {
       const s = j && bodyOf(j)[0];
       if (!s || !s.location) return;
       const [lat, lon] = s.location.split(",").map(Number);
-      pts.push([lat, lon]);
+      stopPts.push([lat, lon]);
       kaleva.push([lat, lon]);
     });
-    if (pts.length) {
-      const c = [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length];
-      L.marker(c, { icon: L.divIcon({ className: "", html: '<div class="stop"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }) }).addTo(map);
-      L.marker(c, { icon: L.divIcon({ className: "", html: '<div class="stop-label">KALEVA</div>', iconSize: [80, 20], iconAnchor: [-14, 10] }) }).addTo(map);
-      map.fitBounds(L.latLngBounds(pts.concat(EXTRA_BOUNDS)).pad(0.25),
-        { paddingTopLeft: [Math.round(map.getSize().x * 0.45), 40], paddingBottomRight: [40, 30] });
+    if (stopPts.length) {
+      const c = [stopPts.reduce((a, p) => a + p[0], 0) / stopPts.length, stopPts.reduce((a, p) => a + p[1], 0) / stopPts.length];
+      L.marker(c, { interactive: false, icon: L.divIcon({ className: "", html: '<div class="stop"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }) }).addTo(map);
+      L.marker(c, { interactive: false, icon: L.divIcon({ className: "", html: '<div class="stop-label">KALEVA</div>', iconSize: [80, 20], iconAnchor: [-14, 10] }) }).addTo(map);
+      fit();
     }
   });
 
