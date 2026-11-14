@@ -702,16 +702,16 @@ svg.leaflet-image-layer.leaflet-interactive path {
     display: flex; align-items: center; justify-content: center;
     box-shadow: 0 0 0 3px rgba(215,25,32,.35), 0 4px 12px rgba(0,0,0,.6);
   }
-  .tram .arrow { position: absolute; inset: 0; transition: transform 1s linear; }
+  .tram .arrow { position: absolute; inset: 0; }
   .tram .arrow::before {
     content: ""; position: absolute; left: 50%; top: -2px; transform: translateX(-50%);
     border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 10px solid #ff5a5f;
   }
-  .tram.kaleva .dot { animation: ping 1.6s ease-out infinite; }
-  @keyframes ping {
-    0% { box-shadow: 0 0 0 3px rgba(215,25,32,.6), 0 4px 12px rgba(0,0,0,.6); }
-    100% { box-shadow: 0 0 0 16px rgba(215,25,32,0), 0 4px 12px rgba(0,0,0,.6); }
-  }
+  /* glide between updates on the GPU instead of moving the marker every frame in JS */
+  .leaflet-marker-icon.tram-icon { transition: transform 3s linear; will-change: transform; }
+  /* "near Kaleva": a static ring around the dot (no animation) */
+  .tram .ring { position: absolute; inset: 0; border-radius: 50%; border: 3px solid rgba(255,90,95,.85); display: none; }
+  .tram.kaleva .ring { display: block; }
 
   /* stop marker */
   .stop { width: 18px; height: 18px; border-radius: 50%; background: #f5c04a; border: 3px solid #0b0e14; box-shadow: 0 0 0 2px #f5c04a; }
@@ -817,12 +817,20 @@ function km(a, b) {
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
-function icon(line, bearing, near) {
+function icon(line) {
   return L.divIcon({
-    className: "",
+    className: "tram-icon",
     iconSize: [44, 44], iconAnchor: [22, 22],
-    html: `<div class="tram${near ? " kaleva" : ""}"><div class="arrow" style="transform: rotate(${bearing || 0}deg)"></div><div class="dot">${line}</div></div>`
+    html: `<div class="tram"><div class="ring"></div><div class="arrow"></div><div class="dot">${line}</div></div>`
   });
+}
+
+function update(t, bearing, near) {
+  const el = t.marker.getElement();
+  if (!el) return;
+  const rot = Math.round(bearing || 0);
+  if (rot !== t.rot) { el.querySelector(".arrow").style.transform = `rotate(${rot}deg)`; t.rot = rot; }
+  if (near !== t.near) { el.querySelector(".tram").classList.toggle("kaleva", near); t.near = near; }
 }
 
 async function poll() {
@@ -831,7 +839,6 @@ async function poll() {
       "&exclude-fields=monitoredVehicleJourney.onwardCalls", { cache: "no-store" });
     const list = bodyOf(await r.json());
     const seen = new Set();
-    const now = performance.now();
     list.forEach(v => {
       const j = v.monitoredVehicleJourney || {};
       const loc = j.vehicleLocation || {};
@@ -840,15 +847,13 @@ async function poll() {
       const id = j.vehicleRef || (j.lineRef + "_" + lat);
       seen.add(id);
       const near = kaleva.some(k => km(k, [lat, lon]) < NEAR_KM);
-      const ic = icon(j.lineRef, parseFloat(j.bearing), near);
-      if (!trams[id]) {
-        trams[id] = { marker: L.marker([lat, lon], { icon: ic }).addTo(map), from: [lat, lon], to: [lat, lon], t0: now };
+      let t = trams[id];
+      if (!t) {
+        t = trams[id] = { marker: L.marker([lat, lon], { icon: icon(j.lineRef), interactive: false, keyboard: false }).addTo(map) };
       } else {
-        const t = trams[id];
-        t.from = t.marker.getLatLng() ? [t.marker.getLatLng().lat, t.marker.getLatLng().lng] : t.to;
-        t.to = [lat, lon]; t.t0 = now;
-        t.marker.setIcon(ic);
+        t.marker.setLatLng([lat, lon]);   // CSS transition does the smooth glide
       }
+      update(t, parseFloat(j.bearing), near);
     });
     Object.keys(trams).forEach(id => { if (!seen.has(id)) { map.removeLayer(trams[id].marker); delete trams[id]; } });
     document.getElementById("err").style.display = "none";
@@ -857,19 +862,8 @@ async function poll() {
   }
 }
 
-// smooth glide between updates
-function frame() {
-  const now = performance.now();
-  Object.values(trams).forEach(t => {
-    const k = Math.min(1, (now - t.t0) / POLL_MS);
-    t.marker.setLatLng([t.from[0] + (t.to[0] - t.from[0]) * k, t.from[1] + (t.to[1] - t.from[1]) * k]);
-  });
-  requestAnimationFrame(frame);
-}
-
 poll();
 setInterval(poll, POLL_MS);
-requestAnimationFrame(frame);
 </script>
 </body>
 </html>
