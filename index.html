@@ -695,23 +695,28 @@ svg.leaflet-image-layer.leaflet-interactive path {
   .leaflet-control-attribution a { color: #8a93a3 !important; }
 
   /* tram marker: red pill with line number + heading arrow */
-  .tram { position: relative; width: 44px; height: 44px; }
+  .tram { position: relative; width: 32px; height: 32px; }
   .tram .dot {
-    position: absolute; inset: 6px; border-radius: 50%;
-    background: #d71920; color: #fff; font-weight: 800; font-size: 17px;
+    position: absolute; inset: 5px; border-radius: 50%;
+    background: #d71920; color: #fff; font-weight: 800; font-size: 13px;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 0 0 3px rgba(215,25,32,.35), 0 4px 12px rgba(0,0,0,.6);
+    box-shadow: 0 0 0 2px rgba(215,25,32,.35), 0 3px 8px rgba(0,0,0,.6);
   }
+  /* line 1: muted, sits in the background; line 3 stays red and on top */
+  .tram.l1 { opacity: .7; }
+  .tram.l1 .dot { background: #4a5568; color: #d5dbe4; box-shadow: 0 0 0 2px rgba(74,85,104,.35), 0 3px 8px rgba(0,0,0,.5); }
+  .tram.l1 .arrow::before { border-bottom-color: #7b8698; }
+  .tram.l1 .ring { border-color: rgba(160,170,185,.8); }
   .tram .arrow { position: absolute; inset: 0; }
   .tram .arrow::before {
     content: ""; position: absolute; left: 50%; top: -2px; transform: translateX(-50%);
-    border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 10px solid #ff5a5f;
+    border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 7px solid #ff5a5f;
   }
   /* glide between updates on the GPU instead of moving the marker every frame in JS */
   .leaflet-marker-icon.tram-icon { transition: transform 1.5s ease-in-out; will-change: transform; }
   .refit .leaflet-marker-icon.tram-icon { transition: none !important; }
   /* "near Kaleva": a static ring around the dot (no animation) */
-  .tram .ring { position: absolute; inset: 0; border-radius: 50%; border: 3px solid rgba(255,90,95,.85); display: none; }
+  .tram .ring { position: absolute; inset: 1px; border-radius: 50%; border: 2px solid rgba(255,90,95,.85); display: none; }
   .tram.kaleva .ring { display: block; }
 
   /* stop marker */
@@ -834,8 +839,8 @@ function km(a, b) {
 function icon(line) {
   return L.divIcon({
     className: "tram-icon",
-    iconSize: [44, 44], iconAnchor: [22, 22],
-    html: `<div class="tram"><div class="ring"></div><div class="arrow"></div><div class="dot">${line}</div></div>`
+    iconSize: [32, 32], iconAnchor: [16, 16],
+    html: `<div class="tram l${line}"><div class="ring"></div><div class="arrow"></div><div class="dot">${line}</div></div>`
   });
 }
 
@@ -863,7 +868,8 @@ async function poll() {
       const near = kaleva.some(k => km(k, [lat, lon]) < NEAR_KM);
       let t = trams[id];
       if (!t) {
-        t = trams[id] = { marker: L.marker([lat, lon], { icon: icon(j.lineRef), interactive: false, keyboard: false }).addTo(map) };
+        t = trams[id] = { marker: L.marker([lat, lon], { icon: icon(j.lineRef), interactive: false, keyboard: false,
+          zIndexOffset: String(j.lineRef) === "3" ? 1000 : 0 }).addTo(map) };
       } else {
         t.marker.setLatLng([lat, lon]);   // CSS transition does the smooth glide
       }
