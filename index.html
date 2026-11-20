@@ -803,7 +803,7 @@ function fit() {
   map.invalidateSize();
   const size = map.getSize();
   if (!stopPts.length || size.x < 50 || size.y < 50) return;
-  map.fitBounds(L.latLngBounds(stopPts.concat(EXTRA_BOUNDS)).pad(0.25),
+  map.fitBounds(L.latLngBounds(stopPts.concat(EXTRA_BOUNDS)).pad(0.7),
     { paddingTopLeft: [Math.round(size.x * 0.45), 40], paddingBottomRight: [40, 30], animate: false });
 }
 let fitTimer = null;
