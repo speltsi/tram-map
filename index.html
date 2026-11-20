@@ -708,7 +708,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 10px solid #ff5a5f;
   }
   /* glide between updates on the GPU instead of moving the marker every frame in JS */
-  .leaflet-marker-icon.tram-icon { transition: transform 3s linear; will-change: transform; }
+  .leaflet-marker-icon.tram-icon { transition: transform 1.5s ease-in-out; will-change: transform; }
   .refit .leaflet-marker-icon.tram-icon { transition: none !important; }
   /* "near Kaleva": a static ring around the dot (no animation) */
   .tram .ring { position: absolute; inset: 0; border-radius: 50%; border: 3px solid rgba(255,90,95,.85); display: none; }
@@ -741,7 +741,7 @@ const API = "https://data.itsfactory.fi/journeys/api/1/";
 const LINES = "1,3";                 // tram lines
 const FOCUS_STOPS = ["0815", "0816"]; // Kaleva A, Kaleva B
 const EXTRA_BOUNDS = [[61.49751, 23.76151]]; // Keskustori, keeps city centre in view
-const POLL_MS = 3000;
+const POLL_MS = 15000;   // update trams every 15 s, on the same clock tick as the other cards
 const NEAR_KM = 1.2;                  // trams closer than this to Kaleva get a pulse
 
 const map = L.map("map", { zoomControl: false, attributionControl: false, dragging: false,
@@ -877,7 +877,8 @@ async function poll() {
 }
 
 poll();
-setInterval(poll, POLL_MS);
+// next updates on wall-clock boundaries (:00, :15, :30, :45) so the trams move together with the other cards
+setTimeout(() => { poll(); setInterval(poll, POLL_MS); }, POLL_MS - (Date.now() % POLL_MS));
 </script>
 </body>
 </html>
